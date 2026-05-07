@@ -2,342 +2,404 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Naruto: Ninja Clash Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Naruto: Shinobi Stride ULTIMATE</title>
     <style>
         :root {
             --naruto-orange: #FF6700;
-            --leaf-green: #4CAF50;
             --chakra-blue: #00E5FF;
             --health-red: #FF3D00;
-            --ui-glass: rgba(0, 0, 0, 0.6);
+            --gold: #FFD700;
+            --glass: rgba(0, 0, 0, 0.7);
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
 
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background: #000;
-            font-family: 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Arial Black', sans-serif;
             user-select: none; touch-action: none;
         }
 
-        #stage {
+        #game-wrapper {
             position: relative; width: 100vw; height: 100vh;
-            perspective: 1000px;
-            background: linear-gradient(to bottom, #1a2a6c, #b21f1f, #fdbb2d);
-            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
         }
 
-        /* 3D ENVIRONMENT */
-        .world {
+        canvas {
             position: absolute; width: 100%; height: 100%;
-            transform-style: preserve-3d;
+            object-fit: cover; background: #111;
         }
 
-        .ground {
-            position: absolute; bottom: 0; width: 200%; height: 50%;
-            background: repeating-linear-gradient(90deg, #2d5a27 0px, #2d5a27 50px, #244a1f 50px, #244a1f 100px);
-            transform: rotateX(70deg); transform-origin: bottom;
-            left: -50%; filter: brightness(0.8);
-        }
-
-        /* PROFESSIONAL UI */
+        /* --- STUDIO UI --- */
         .hud {
-            position: absolute; top: 0; left: 0; width: 100%; padding: 20px;
-            display: flex; justify-content: space-between; z-index: 50;
-            pointer-events: none;
-        }
-
-        .status-group {
-            background: var(--ui-glass); padding: 15px; border-radius: 0 20px 20px 0;
-            border-left: 5px solid var(--naruto-orange); backdrop-filter: blur(10px);
-        }
-
-        .bar-bg { width: 200px; height: 12px; background: #333; border-radius: 6px; margin: 5px 0; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
-        .bar-fill { height: 100%; transition: width 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67); }
-        #hp-fill { background: linear-gradient(90deg, #ff3d00, #ff9100); width: 100%; box-shadow: 0 0 10px var(--health-red); }
-        #cp-fill { background: linear-gradient(90deg, #00e5ff, #00a1ff); width: 100%; box-shadow: 0 0 10px var(--chakra-blue); }
-
-        .score-panel { text-align: right; color: white; text-shadow: 0 0 10px rgba(0,0,0,1); }
-        .ryo-text { color: #FFD700; font-weight: bold; font-size: 24px; }
-
-        /* CONTROLS */
-        .action-grid {
-            position: absolute; bottom: 30px; right: 30px;
-            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            position: absolute; inset: 0; pointer-events: none;
+            padding: env(safe-area-inset-top) 20px;
             z-index: 100;
         }
 
-        .jutsu-btn {
-            width: 75px; height: 75px; border-radius: 50%;
-            background: var(--ui-glass); border: 2px solid var(--chakra-blue);
-            color: white; font-weight: bold; font-size: 10px;
+        .stats-left {
+            position: absolute; top: 20px; left: 20px;
+            background: var(--glass); padding: 10px 20px;
+            border-left: 6px solid var(--naruto-orange);
+            border-radius: 0 15px 15px 0; backdrop-filter: blur(8px);
+        }
+
+        .bar-container {
+            width: 220px; height: 14px; background: #222;
+            margin: 5px 0; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px; overflow: hidden; position: relative;
+        }
+
+        .bar-fill {
+            height: 100%; width: 100%; transition: width 0.2s ease-out;
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        #hp-fill { background: var(--health-red); color: var(--health-red); }
+        #cp-fill { background: var(--chakra-blue); color: var(--chakra-blue); }
+
+        .score-box {
+            position: absolute; top: 20px; right: 20px; text-align: right;
+            color: #fff; text-shadow: 0 0 10px #000;
+        }
+
+        /* --- ABILITY WHEEL --- */
+        .controls {
+            position: absolute; bottom: 40px; right: 40px;
+            display: flex; gap: 15px; pointer-events: auto;
+        }
+
+        .ability-btn {
+            width: 70px; height: 70px; border-radius: 50%;
+            background: var(--glass); border: 3px solid #fff;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            backdrop-filter: blur(5px); pointer-events: auto;
-            transition: transform 0.1s;
+            color: #fff; font-size: 10px; font-weight: bold;
+            transition: 0.1s; backdrop-filter: blur(10px);
         }
 
-        .jutsu-btn:active { transform: scale(0.9); background: var(--chakra-blue); }
+        .ability-btn:active { transform: scale(0.8) rotate(-10deg); border-color: var(--naruto-orange); }
+        .ability-btn.locked { opacity: 0.5; border-color: #555; }
 
-        /* CHARACTER MODELS (CSS3D/2D Hybrid) */
-        .entity {
-            position: absolute; bottom: 20%; transform-style: preserve-3d;
-            transition: transform 0.1s;
+        /* --- CINEMATIC OVERLAYS --- */
+        #flash {
+            position: absolute; inset: 0; background: #fff; opacity: 0;
+            pointer-events: none; z-index: 200;
         }
 
-        .sprite {
-            width: 80px; height: 110px;
-            background-size: contain; background-repeat: no-repeat;
-            position: relative;
+        .screen-msg {
+            position: absolute; top: 40%; width: 100%; text-align: center;
+            font-size: 60px; color: #fff; font-style: italic;
+            text-shadow: 0 0 30px var(--naruto-orange);
+            transform: scale(0); transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none; z-index: 150;
         }
 
-        /* Naruto CSS Model */
-        .naruto-model {
-            background: #ff6700; border-radius: 10px; border: 3px solid black;
-            box-shadow: inset 0 -20px rgba(0,0,0,0.2);
-        }
-        .naruto-model::after {
-            content: '🍥'; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); font-size: 40px;
-        }
+        .show-msg { transform: scale(1.2); }
 
-        /* MENU SYSTEMS */
-        .overlay {
+        .menu {
             position: absolute; inset: 0; background: rgba(0,0,0,0.9);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 1000; color: white; gap: 20px;
+            z-index: 1000; color: #fff;
         }
 
-        .btn-main {
-            padding: 15px 50px; font-size: 20px; font-weight: bold;
-            background: var(--naruto-orange); border: none; border-radius: 50px;
-            color: white; box-shadow: 0 5px 0 #b34700;
+        .btn-start {
+            padding: 20px 60px; background: var(--naruto-orange);
+            border: none; border-radius: 50px; color: #fff;
+            font-size: 24px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 20px var(--naruto-orange);
         }
-
-        .btn-main:active { transform: translateY(5px); box-shadow: none; }
-
+        
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-<div id="stage">
-    <div class="world" id="world">
-        <div class="ground" id="ground"></div>
-    </div>
+<div id="game-wrapper">
+    <canvas id="mainCanvas"></canvas>
+    <div id="flash"></div>
+    <div id="msg" class="screen-msg">RASENGAN!</div>
 
     <div class="hud">
-        <div class="status-group">
-            <div style="color:white; font-size: 12px; font-weight:bold;">SHINOBI VITALS</div>
-            <div class="bar-bg"><div id="hp-fill" class="bar-fill"></div></div>
-            <div class="bar-bg"><div id="cp-fill" class="bar-fill"></div></div>
+        <div class="stats-left">
+            <div style="font-size: 10px; letter-spacing: 2px;">SHINOBI DATA</div>
+            <div class="bar-container"><div id="hp-fill" class="bar-fill"></div></div>
+            <div class="bar-container"><div id="cp-fill" class="bar-fill"></div></div>
         </div>
-        <div class="score-panel">
-            <div class="ryo-text">RYO: <span id="ryo-val">0</span></div>
-            <div style="font-size: 18px;">SCORE: <span id="score-val">0</span></div>
-        </div>
-    </div>
-
-    <div class="action-grid">
-        <button class="jutsu-btn" id="btn-shuriken">SHURIKEN<br><span>(5 CP)</span></button>
-        <button class="jutsu-btn" id="btn-clone" style="border-color: #fff;">CLONE<br><span>(30 CP)</span></button>
-        <button class="jutsu-btn" id="btn-special" style="border-color: var(--naruto-orange);">ULTIMATE<br><span>(MAX)</span></button>
-    </div>
-
-    <div id="menu-start" class="overlay">
-        <h1 style="font-size: 48px; color: var(--naruto-orange); text-shadow: 0 0 20px #fff;">NINJA CLASH</h1>
-        <p>CHOOSE YOUR SHINOBI</p>
-        <div style="display:flex; gap: 20px;">
-            <button class="btn-main" onclick="initGame('naruto')">NARUTO</button>
-            <button class="btn-main" style="background:#4a148c" onclick="initGame('sasuke')">SASUKE</button>
+        <div class="score-box">
+            <div style="color: var(--gold); font-size: 24px;" id="ryo-ui">RYO 0</div>
+            <div id="score-ui">SCORE 0</div>
         </div>
     </div>
 
-    <div id="menu-death" class="overlay hidden">
-        <h1 style="color: var(--health-red);">MISSION FAILED</h1>
-        <button class="btn-main" onclick="location.reload()">REDEPLOY</button>
+    <div class="controls">
+        <div class="ability-btn" onclick="triggerJutsu('shuriken')">PROJECTILE<br>5 CP</div>
+        <div class="ability-btn" onclick="triggerJutsu('rasengan')" style="border-color: var(--chakra-blue)">RASENGAN<br>40 CP</div>
+        <div class="ability-btn" onclick="triggerJutsu('ultimate')" style="border-color: var(--naruto-orange)">ULTIMATE<br>100 CP</div>
+    </div>
+
+    <div id="start-screen" class="menu">
+        <h1 style="font-size: 50px; margin-bottom: 10px;">SHINOBI <span style="color:var(--naruto-orange)">STRIDE</span></h1>
+        <p style="margin-bottom: 30px; opacity: 0.7;">ULTIMATE STUDIO EDITION</p>
+        <button class="btn-start" onclick="startGame()">ENTER BATTLE</button>
     </div>
 </div>
 
 <script>
-/** * PROFESSIONAL GAME ENGINE
+/** * ULTIMATE NINJA ENGINE 
+ * Hand-coded studio-grade mechanics
  */
-const CONFIG = {
-    gravity: 0.8,
-    jumpStrength: -16,
-    groundY: 0.8,
-    maxHp: 100,
-    maxCp: 100
+
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('msg');
+const flash = document.getElementById('flash');
+
+// Game Settings
+let width, height;
+let frame = 0;
+let isRunning = false;
+const particles = [];
+const enemies = [];
+const projectiles = [];
+
+const player = {
+    x: 100, y: 0, w: 60, h: 90,
+    hp: 100, cp: 100,
+    velY: 0, isJumping: false,
+    state: 'run', // run, jump, attack
+    score: 0, ryo: 0
 };
 
-const state = {
-    playing: false,
-    score: 0,
-    ryo: parseInt(localStorage.getItem('ryo_pro')) || 0,
-    hp: 100,
-    cp: 100,
-    pos: { x: 100, y: 0 },
-    vel: { x: 0, y: 0 },
-    isJumping: false,
-    enemies: [],
-    particles: [],
-    bgOffset: 0
-};
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    player.y = height * 0.7 - player.h;
+}
+window.addEventListener('resize', resize);
+resize();
 
-// Character Template
-const playerEl = document.createElement('div');
-playerEl.className = 'entity';
-playerEl.innerHTML = `<div class="sprite naruto-model" id="player-sprite"></div>`;
-
-/**
- * AUDIO SYNTHESIZER
- */
-const audio = new (window.AudioContext || window.webkitAudioContext)();
-function playSfx(f, t, d, v=0.1) {
-    const o = audio.createOscillator(), g = audio.createGain();
-    o.type = t; o.frequency.setValueAtTime(f, audio.currentTime);
-    g.gain.setValueAtTime(v, audio.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, audio.currentTime + d);
-    o.connect(g); g.connect(audio.destination);
-    o.start(); o.stop(audio.currentTime + d);
+/** AUDIO ENGINE **/
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(freq, type, dur, vol=0.1) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
 }
 
-/**
- * GAME CORE
- */
-function initGame(hero) {
-    document.getElementById('menu-start').classList.add('hidden');
-    document.getElementById('world').appendChild(playerEl);
-    state.playing = true;
-    if(hero === 'sasuke') {
-        document.getElementById('player-sprite').style.background = '#2a2a72';
+/** VFX SYSTEM **/
+class Particle {
+    constructor(x, y, color, size, vx, vy) {
+        this.x = x; this.y = y; this.color = color;
+        this.size = size; this.vx = vx; this.vy = vy;
+        this.alpha = 1;
     }
-    gameLoop();
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        this.alpha -= 0.02;
+    }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
 }
 
-// Input Controllers
-window.addEventListener('touchstart', (e) => {
-    if(!state.playing) return;
-    const touchY = e.touches[0].clientY;
-    if(touchY < window.innerHeight / 2 && !state.isJumping) {
-        state.vel.y = CONFIG.jumpStrength;
-        state.isJumping = true;
-        playSfx(400, 'triangle', 0.2);
+function createBurst(x, y, color) {
+    for(let i=0; i<15; i++) {
+        particles.push(new Particle(x, y, color, Math.random()*5, (Math.random()-0.5)*10, (Math.random()-0.5)*10));
     }
-});
+}
 
-document.getElementById('btn-shuriken').addEventListener('click', () => {
-    if(state.cp >= 5) {
-        state.cp -= 5;
-        createProjectile(state.pos.x + 50, window.innerHeight * 0.7);
-        playSfx(800, 'sine', 0.1);
-    }
-});
-
-function createProjectile(x, y) {
-    const p = document.createElement('div');
-    p.style.cssText = `position:absolute; left:${x}px; top:${y}px; font-size:20px; z-index:10;`;
-    p.innerHTML = '🎯';
-    document.getElementById('world').appendChild(p);
+/** GAME LOGIC **/
+function triggerJutsu(type) {
+    if(!isRunning) return;
     
-    let px = x;
-    const pAnim = setInterval(() => {
-        px += 15;
-        p.style.left = px + 'px';
-        
-        // Simple collision
-        state.enemies.forEach((en, i) => {
-            if(px > en.x && px < en.x + 50) {
-                en.hp -= 50;
-                if(en.hp <= 0) destroyEnemy(en, i);
-                p.remove();
-                clearInterval(pAnim);
+    if(type === 'shuriken' && player.cp >= 5) {
+        player.cp -= 5;
+        projectiles.push({x: player.x + 50, y: player.y + 40, type: 'kunai'});
+        playSound(600, 'sine', 0.1);
+    } 
+    else if(type === 'rasengan' && player.cp >= 40) {
+        player.cp -= 40;
+        showCinematic("RASENGAN!", "#00E5FF");
+        createBurst(player.x + 100, player.y + 45, "#00E5FF");
+        // Logic to clear screen
+        enemies.forEach((e, i) => {
+            if(e.x < width) {
+                createBurst(e.x, e.y, "#ff0");
+                enemies.splice(i, 1);
             }
         });
-
-        if(px > window.innerWidth) { p.remove(); clearInterval(pAnim); }
-    }, 16);
+    }
+    else if(type === 'ultimate' && player.cp >= 95) {
+        player.cp = 0;
+        showCinematic("Tailed Beast Bomb!", "#FF3D00");
+        flash.style.opacity = 1;
+        setTimeout(() => flash.style.opacity = 0, 500);
+        enemies.length = 0;
+        player.score += 500;
+    }
 }
 
-function spawnEnemy() {
-    const en = {
-        x: window.innerWidth + 100,
-        hp: 100,
-        el: document.createElement('div')
-    };
-    en.el.className = 'entity';
-    en.el.innerHTML = `<div class="sprite" style="background:#000; border:2px solid red;"></div><div style="color:red; text-align:center">RENEGADE</div>`;
-    document.getElementById('world').appendChild(en.el);
-    state.enemies.push(en);
+function showCinematic(text, color) {
+    msg.innerText = text;
+    msg.style.textShadow = `0 0 30px ${color}`;
+    msg.classList.add('show-msg');
+    if (window.navigator.vibrate) window.navigator.vibrate([100, 50, 100]);
+    setTimeout(() => msg.classList.remove('show-msg'), 1500);
 }
 
-function destroyEnemy(en, index) {
-    if (window.navigator.vibrate) window.navigator.vibrate(50);
-    en.el.remove();
-    state.enemies.splice(index, 1);
-    state.score += 100;
-    state.ryo += 10;
-    playSfx(100, 'sawtooth', 0.3);
+function startGame() {
+    document.getElementById('start-screen').classList.add('hidden');
+    isRunning = true;
+    loop();
 }
 
 function update() {
-    if(!state.playing) return;
+    frame++;
 
-    // Physics
-    state.vel.y += CONFIG.gravity;
-    state.pos.y += state.vel.y;
-
-    const floor = window.innerHeight * 0.7;
-    if(state.pos.y > floor) {
-        state.pos.y = floor;
-        state.vel.y = 0;
-        state.isJumping = false;
+    // Gravity & Ground
+    const ground = height * 0.75;
+    if(player.isJumping) {
+        player.velY += 1;
+        player.y += player.velY;
+        if(player.y >= ground - player.h) {
+            player.y = ground - player.h;
+            player.isJumping = false;
+        }
     }
 
-    // Parallax Ground
-    state.bgOffset -= 5;
-    document.getElementById('ground').style.backgroundPositionX = state.bgOffset + 'px';
+    // Regeneration
+    if(player.cp < 100) player.cp += 0.1;
 
-    // Character Rendering
-    playerEl.style.transform = `translate3d(${state.pos.x}px, ${state.pos.y}px, 0) scale(${1 + (state.pos.y/2000)})`;
-    
-    // Enemy AI
-    state.enemies.forEach((en, i) => {
-        en.x -= 6;
-        en.el.style.transform = `translate3d(${en.x}px, ${floor}px, 0)`;
-        
-        // Hit Player
-        if(en.x > state.pos.x && en.x < state.pos.x + 40 && state.pos.y > floor - 50) {
-            state.hp -= 1;
-            if(state.hp <= 0) endGame();
-        }
+    // Spawn Enemies
+    if(frame % 100 === 0) {
+        enemies.push({x: width + 50, y: ground - 90, w: 60, h: 90, speed: 5 + (frame/1000)});
+    }
 
-        if(en.x < -100) {
-            en.el.remove();
-            state.enemies.splice(i, 1);
+    // Move Enemies
+    enemies.forEach((e, i) => {
+        e.x -= e.speed;
+        if(e.x < -100) enemies.splice(i, 1);
+
+        // Collision with player
+        if(e.x < player.x + player.w && e.x + e.w > player.x && e.y < player.y + player.h) {
+            player.hp -= 0.5;
+            if(player.hp <= 0) location.reload();
         }
     });
 
-    if(Math.random() < 0.01) spawnEnemy();
+    // Move Projectiles
+    projectiles.forEach((p, i) => {
+        p.x += 15;
+        enemies.forEach((e, ei) => {
+            if(p.x > e.x && p.x < e.x + e.w && p.y > e.y) {
+                createBurst(e.x, e.y, "#fff");
+                enemies.splice(ei, 1);
+                projectiles.splice(i, 1);
+                player.score += 50;
+                player.ryo += 5;
+            }
+        });
+    });
 
-    // UI Bars
-    state.cp = Math.min(100, state.cp + 0.2);
-    document.getElementById('hp-fill').style.width = state.hp + '%';
-    document.getElementById('cp-fill').style.width = state.cp + '%';
-    document.getElementById('ryo-val').innerText = state.ryo;
-    document.getElementById('score-val').innerText = state.score;
+    particles.forEach((p, i) => {
+        p.update();
+        if(p.alpha <= 0) particles.splice(i, 1);
+    });
+
+    // Update HUD
+    document.getElementById('hp-fill').style.width = player.hp + '%';
+    document.getElementById('cp-fill').style.width = player.cp + '%';
+    document.getElementById('score-ui').innerText = "SCORE " + Math.floor(player.score);
+    document.getElementById('ryo-ui').innerText = "RYO " + player.ryo;
 }
 
-function endGame() {
-    state.playing = false;
-    localStorage.setItem('ryo_pro', state.ryo);
-    document.getElementById('menu-death').classList.remove('hidden');
+function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Background Layers
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw Ground
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, height * 0.75, width, height * 0.25);
+    ctx.strokeStyle = varProperty('--chakra-blue');
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, height * 0.75); ctx.lineTo(width, height * 0.75); ctx.stroke();
+
+    // Draw Player Body (Professional Proportions)
+    ctx.save();
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(player.x + player.w/2, player.y + player.h, 30, 10, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = '#FF6700'; // Jumpsuit
+    ctx.fillRect(player.x + 10, player.y + 30, 40, 40);
+    ctx.fillStyle = '#333'; // Pants
+    ctx.fillRect(player.x + 10, player.y + 70, 40, 20);
+    ctx.fillStyle = '#FADBB1'; // Face
+    ctx.fillRect(player.x + 15, player.y, 30, 30);
+    ctx.fillStyle = '#FFD700'; // Hair
+    ctx.fillRect(player.x + 10, player.y - 10, 40, 15);
+    
+    // Chakra Aura
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = player.cp > 90 ? 'red' : 'cyan';
+    ctx.strokeStyle = '#fff';
+    ctx.strokeRect(player.x + 10, player.y, 40, 90);
+    ctx.restore();
+
+    // Draw Enemies
+    enemies.forEach(e => {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(e.x, e.y, e.w, e.h);
+        ctx.fillStyle = 'red';
+        ctx.fillRect(e.x + 10, e.y + 10, 10, 10); // Glowing eye
+    });
+
+    // Draw Projectiles
+    ctx.fillStyle = '#fff';
+    projectiles.forEach(p => ctx.fillRect(p.x, p.y, 15, 4));
+
+    particles.forEach(p => p.draw());
 }
 
-function gameLoop() {
+function varProperty(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name);
+}
+
+function loop() {
+    if(!isRunning) return;
     update();
-    if(state.playing) requestAnimationFrame(gameLoop);
+    draw();
+    requestAnimationFrame(loop);
 }
+
+// Input: Tap to Jump
+window.addEventListener('touchstart', (e) => {
+    if(e.target.className.includes('ability-btn')) return;
+    if(!player.isJumping) {
+        player.isJumping = true;
+        player.velY = -20;
+        playSound(200, 'square', 0.2);
+    }
+});
 </script>
 </body>
 </html>
