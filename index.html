@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Naruto: Ninja Clash</title>
+    <style>
+        :root {
+            --chakra-blue: #00aaff;
+            --health-red: #ff4444;
+            --ryo-gold: #ffd700;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: #222; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; touch-action: none;
+        }
+
+        #game-container {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        canvas {
+            background: linear-gradient(to bottom, #87CEEB 0%, #2e8b57 100%);
+            display: block; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* --- UI OVERLAYS --- */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; color: white;
+        }
+
+        .stat-bar-container {
+            position: absolute; top: 10px; left: 10px; width: 150px;
+            height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff;
+        }
+
+        #health-bar { width: 100%; height: 100%; background: var(--health-red); transition: width 0.3s; }
+        #chakra-bar { width: 100%; height: 100%; background: var(--chakra-blue); transition: width 0.3s; }
+
+        #top-right-ui { position: absolute; top: 10px; right: 10px; text-align: right; pointer-events: auto; }
+        .currency { color: var(--ryo-gold); font-weight: bold; font-size: 1.2rem; }
+
+        #controls-hint {
+            position: absolute; bottom: 80px; width: 100%; text-align: center;
+            opacity: 0.6; font-size: 0.8rem;
+        }
+
+        /* --- MENUS --- */
+        .menu {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; z-index: 100; pointer-events: auto;
+        }
+
+        .hidden { display: none !important; }
+
+        button {
+            padding: 15px 30px; font-size: 1.2rem; margin: 10px;
+            cursor: pointer; background: #f60; color: white; border: none;
+            border-radius: 8px; font-weight: bold; min-width: 200px;
+        }
+
+        .shop-item {
+            background: #444; padding: 10px; margin: 5px; width: 80%;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div style="position: absolute; top: 10px; left: 10px;">
+            <div class="stat-bar-container"><div id="health-bar"></div></div>
+            <div class="stat-bar-container" style="top: 35px;"><div id="chakra-bar"></div></div>
+        </div>
+        
+        <div id="top-right-ui">
+            <div id="score-display">Score: 0</div>
+            <div class="currency">Ryo: <span id="ryo-count">0</span></div>
+        </div>
+
+        <div style="position: absolute; bottom: 20px; right: 20px; pointer-events: auto; display: flex; gap: 10px;">
+            <button id="btn-clone" style="min-width: 60px; font-size: 0.8rem;">CLONE</button>
+            <button id="btn-rage" style="min-width: 60px; font-size: 0.8rem; background: #900;">RAGE</button>
+        </div>
+    </div>
+
+    <div id="start-menu" class="menu">
+        <h1 style="color: #f60; font-size: 3rem; margin-bottom: 0;">NINJA CLASH</h1>
+        <p style="color: #ccc;">Select Character</p>
+        <div id="char-select">
+            <button onclick="startGame('naruto')">NARUTO</button>
+            <button onclick="startGame('sasuke')" style="background: #44f;">SASUKE</button>
+        </div>
+        <button onclick="toggleShop()" style="background: #666;">SHOP & REWARDS</button>
+    </div>
+
+    <div id="shop-menu" class="menu hidden">
+        <h2>NINJA SHOP</h2>
+        <div class="shop-item">
+            <span>Health Regen</span>
+            <button onclick="buyUpgrade('regen')" style="min-width: 80px;">50 Ryo</button>
+        </div>
+        <div class="shop-item">
+            <span>Shuriken Dmg</span>
+            <button onclick="buyUpgrade('dmg')" style="min-width: 80px;">75 Ryo</button>
+        </div>
+        <button onclick="toggleShop()">BACK</button>
+    </div>
+</div>
+
+<script>
+/** * GAME ENGINE CORE 
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const healthFill = document.getElementById('health-bar');
+const chakraFill = document.getElementById('chakra-bar');
+
+// State Management
+let gameState = 'MENU';
+let score = 0;
+let ryo = parseInt(localStorage.getItem('ryo')) || 0;
+let highscore = parseInt(localStorage.getItem('highscore')) || 0;
+let touchX = 0;
+let touchY = 0;
+
+// Game Constants
+const GRAVITY = 0.6;
+const GROUND_HEIGHT = 50;
+
+// Audio Synth
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(freq, type, duration) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+}
+
+class Player {
+    constructor(type) {
+        this.type = type;
+        this.reset();
+    }
+
+    reset() {
+        this.x = 50;
+        this.y = canvas.height - GROUND_HEIGHT - 60;
+        this.w = 40;
+        this.h = 60;
+        this.vy = 0;
+        this.health = 100;
+        this.chakra = 100;
+        this.isJumping = false;
+        this.isSliding = false;
+        this.isRage = false;
+        this.emoji = this.type === 'sasuke' ? '⚡' : '🍥';
+    }
+
+    update() {
+        // Gravity
+        this.y += this.vy;
+        if (this.y < canvas.height - GROUND_HEIGHT - this.h) {
+            this.vy += GRAVITY;
+        } else {
+            this.y = canvas.height - GROUND_HEIGHT - this.h;
+            this.vy = 0;
+            this.isJumping = false;
+        }
+
+        // Regen
+        if (this.chakra < 100) this.chakra += 0.1;
+        
+        // Update UI
+        healthFill.style.width = this.health + '%';
+        chakraFill.style.width = this.chakra + '%';
+    }
+
+    draw() {
+        ctx.font = this.isSliding ? "30px serif" : "50px serif";
+        ctx.fillText(this.emoji, this.x, this.isSliding ? this.y + 40 : this.y + 45);
+        if (this.isRage) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(this.x, this.y, this.w, this.h);
+        }
+    }
+
+    jump() {
+        if (!this.isJumping) {
+            this.vy = -15;
+            this.isJumping = true;
+            playSound(400, 'square', 0.1);
+        }
+    }
+}
+
+class Enemy {
+    constructor(isBoss = false) {
+        this.isBoss = isBoss;
+        this.x = canvas.width + 50;
+        this.y = canvas.height - GROUND_HEIGHT - (isBoss ? 100 : 50);
+        this.w = isBoss ? 80 : 40;
+        this.h = isBoss ? 100 : 50;
+        this.speed = isBoss ? 2 : 4 + Math.random() * 3;
+        this.health = isBoss ? 500 : 1;
+        this.emoji = isBoss ? '🏜️' : '👤'; // Gaara vs Random Ninja
+    }
+
+    update() {
+        this.x -= this.speed;
+    }
+
+    draw() {
+        ctx.font = this.isBoss ? "80px serif" : "40px serif";
+        ctx.fillText(this.emoji, this.x, this.y + (this.isBoss ? 70 : 35));
+    }
+}
+
+class Projectile {
+    constructor(x, y, targetX, targetY, type = 'shuriken') {
+        this.x = x; this.y = y;
+        this.type = type;
+        const angle = Math.atan2(targetY - y, targetX - x);
+        this.vx = Math.cos(angle) * 10;
+        this.vy = Math.sin(angle) * 10;
+    }
+    update() { this.x += this.vx; this.y += this.vy; }
+    draw() {
+        ctx.fillText(this.type === 'shuriken' ? '⭐' : '🔵', this.x, this.y);
+    }
+}
+
+// Instantiate Game Objects
+let player = new Player('naruto');
+let enemies = [];
+let projectiles = [];
+let frameCount = 0;
+
+function initCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+/**
+ * GAME LOOP
+ */
+function loop() {
+    if (gameState !== 'PLAYING') return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw Background/Ground
+    ctx.fillStyle = '#553311';
+    ctx.fillRect(0, canvas.height - GROUND_HEIGHT, canvas.width, GROUND_HEIGHT);
+
+    player.update();
+    player.draw();
+
+    // Spawn Enemies
+    if (frameCount % 100 === 0 && score % 300 !== 0) {
+        enemies.push(new Enemy(false));
+    }
+    if (score > 0 && score % 300 === 0 && !enemies.some(e => e.isBoss)) {
+        enemies.push(new Enemy(true));
+    }
+
+    // Process Projectiles
+    projectiles.forEach((p, pi) => {
+        p.update();
+        p.draw();
+        // Collision
+        enemies.forEach((e, ei) => {
+            if (p.x > e.x && p.x < e.x + e.w && p.y > e.y && p.y < e.y + e.h) {
+                e.health -= (p.type === 'rasengan' ? 50 : 1);
+                projectiles.splice(pi, 1);
+                if (e.health <= 0) {
+                    enemies.splice(ei, 1);
+                    score += e.isBoss ? 100 : 10;
+                    ryo += e.isBoss ? 50 : 5;
+                    playSound(200, 'sine', 0.05);
+                }
+            }
+        });
+        if (p.x > canvas.width || p.x < 0) projectiles.splice(pi, 1);
+    });
+
+    // Process Enemies
+    enemies.forEach((e, i) => {
+        e.update();
+        e.draw();
+        
+        // Player Collision
+        if (player.x < e.x + e.w && player.x + player.w > e.x && player.y < e.y + e.h && player.y + player.h > e.y) {
+            if (!player.isRage) {
+                player.health -= 0.5;
+                if (player.health <= 0) gameOver();
+            }
+        }
+
+        if (e.x < -100) enemies.splice(i, 1);
+    });
+
+    // Updates
+    document.getElementById('score-display').innerText = `Score: ${score}`;
+    document.getElementById('ryo-count').innerText = ryo;
+    
+    frameCount++;
+    requestAnimationFrame(loop);
+}
+
+/**
+ * CONTROLS & EVENTS
+ */
+let touchStartY = 0;
+canvas.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    touchStartY = touch.clientY;
+    
+    // Tap enemy to throw shuriken
+    if (player.chakra >= 10) {
+        projectiles.push(new Projectile(player.x + 20, player.y + 20, x, y));
+        player.chakra -= 10;
+        playSound(800, 'triangle', 0.05);
+    }
+}, false);
+
+canvas.addEventListener('touchend', (e) => {
+    const touchEndY = e.changedTouches[0].clientY;
+    if (touchStartY - touchEndY > 30) player.jump();
+    if (touchEndY - touchStartY > 30) {
+        player.isSliding = true;
+        setTimeout(() => player.isSliding = false, 500);
+    }
+});
+
+document.getElementById('btn-clone').addEventListener('touchstart', () => {
+    if (player.chakra >= 50) {
+        player.chakra -= 50;
+        // Simple visual clone effect
+        projectiles.push(new Projectile(player.x, player.y, canvas.width, player.y, 'rasengan'));
+        playSound(150, 'sawtooth', 0.2);
+    }
+});
+
+document.getElementById('btn-rage').addEventListener('touchstart', () => {
+    if (player.chakra >= 80) {
+        player.chakra -= 80;
+        player.isRage = true;
+        setTimeout(() => player.isRage = false, 5000);
+        if (navigator.vibrate) navigator.vibrate(200);
+    }
+});
+
+/**
+ * SYSTEM FUNCTIONS
+ */
+function startGame(char) {
+    player = new Player(char);
+    score = 0;
+    gameState = 'PLAYING';
+    document.getElementById('start-menu').classList.add('hidden');
+    document.getElementById('shop-menu').classList.add('hidden');
+    initCanvas();
+    loop();
+}
+
+function gameOver() {
+    gameState = 'MENU';
+    localStorage.setItem('ryo', ryo);
+    if (score > highscore) localStorage.setItem('highscore', score);
+    document.getElementById('start-menu').classList.remove('hidden');
+    alert(`Mission Failed! Score: ${score}`);
+}
+
+function toggleShop() {
+    document.getElementById('shop-menu').classList.toggle('hidden');
+}
+
+function buyUpgrade(type) {
+    if (ryo >= 50) {
+        ryo -= 50;
+        alert("Upgrade purchased!");
+    } else {
+        alert("Not enough Ryo!");
+    }
+}
+
+// Handle resizing
+window.addEventListener('resize', initCanvas);
+initCanvas();
+
+// Daily Reward Mockup
+if (!localStorage.getItem('lastLogin')) {
+    ryo += 100;
+    localStorage.setItem('lastLogin', Date.now());
+    alert("Daily Reward: 100 Ryo Collected!");
+}
+</script>
+</body>
+</html>
